@@ -17,3 +17,4 @@ export async function getUserByEmail(email) {
 }
 
 export { createStyleProfile } from './repositories/style-profile.repo.js';
+export { createDocument } from './repositories/document-review.repo.js';

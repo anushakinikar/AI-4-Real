@@ -10,6 +10,7 @@ export default function ProjectForm() {
   const [sourceLang, setSourceLang] = useState("English");
   const [targetLang, setTargetLang] = useState("");
   const [docType, setDocType] = useState("Business Email");
+  const [uploadedS3Key, setUploadedS3Key] = useState("");
   const handleFileSelection = (e) => {
     // Grab the first file the user selected
     if (e.target.files && e.target.files.length > 0) {
@@ -26,13 +27,15 @@ export default function ProjectForm() {
     const formData = new FormData();
     formData.append("document", file); // "document" is the field name Fastify will look for (or default file field)
     try {
-      const response = await fetch("http://localhost:8080/api/upload", {
+      const response = await fetch("http://localhost:8081/api/upload", {
         method: "POST",
         // Do NOT set "Content-Type" manually here. The browser automatically sets it to multipart/form-data with the correct boundary!
         body: formData,
-      });
+
+      }); const result = await response.json();
       if (response.ok) {
         setUploadStatus("Upload Successful!");
+        setUploadedS3Key(result.fileName);
       } else {
         setUploadStatus("Upload Failed.");
       }
@@ -51,9 +54,17 @@ export default function ProjectForm() {
         source_lang: sourceLang,
         target_lang: targetLang,
         // Since privacy isn't directly a column, we can store it in the JSONB style_rules field
-        style_rules: { privacyLevel: selectedPrivacy }
+        style_rules: { privacyLevel: selectedPrivacy },
+
+
+        document_data: {
+          filename: file ? file.name : null,   // The original name (business_email.pdf)
+          s3_key: uploadedS3Key,               // The MinIO key (1775298185885-business_email.pdf)
+          sensitivity: selectedPrivacy,        // Assuming sensitivity maps to Privacy Level
+          target_lang: targetLang,
+        }
       };
-      const res = await fetch("http://localhost:8080/api/style-profile", {
+      const res = await fetch("http://localhost:8081/api/style-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
