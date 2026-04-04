@@ -5,10 +5,36 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
-import { uploadToMinio } from 'storage'
-import { getUserByEmail, createStyleProfile, createDocument } from 'db'; // Imports from your packages/db
+import { uploadToMinio } from 'storage';
+import { getUserByEmail, createStyleProfile, createDocument } from 'db';
 
 const fastify = Fastify({ logger: true });
+const NLP_SERVICE_URL = process.env.NLP_SERVICE_URL || 'http://127.0.0.1:8000';
+
+async function triggerDocumentParsing(document, data) {
+    const response = await fetch(`${NLP_SERVICE_URL}/parse`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            document_id: document.id,
+            s3_key: document.s3_key,
+            target_lang: document.target_lang || data.target_lang,
+            org_id: String(data.org_id || 'default-org'),
+            raw_bucket: 'vaanisetu-raw',
+            parsed_bucket: process.env.MINIO_PARSED_BUCKET || 'vaanisetu-parsed',
+            source_lang: data.source_lang || 'en-US'
+        })
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Parsing service failed (${response.status}): ${errorText}`);
+    }
+
+    return response.json();
+}
 
 // Register CORS so frontend can talk to backend
 fastify.register(cors, {
@@ -112,18 +138,27 @@ fastify.post('/api/style-profile', async (request, reply) => {
             created_by: data.created_by || 1
         });
         let newDocument = null;
+        let parsingResult = null;
+
         if (data.document_data && data.document_data.s3_key) {
             newDocument = await createDocument({
                 filename: data.document_data.filename,
                 s3_key: data.document_data.s3_key,
                 target_lang: data.document_data.target_lang,
-                sensitivity: data.document_data.sensitivity.toUpperCase(),
+                sensitivity: (data.document_data.sensitivity || 'STANDARD').toUpperCase(),
                 project_id: generatedId
             });
+
+            parsingResult = await triggerDocumentParsing(newDocument, data);
         }
 
-        console.log("Submitting tone:", data.tone.toUpperCase());
-        return reply.status(201).send({ success: true, profile: newProfile });
+        console.log('Submitting tone:', data.tone.toUpperCase());
+        return reply.status(201).send({
+            success: true,
+            profile: newProfile,
+            document: newDocument,
+            parsing: parsingResult
+        });
     } catch (error) {
         fastify.log.error(error);
         return reply.status(500).send({ error: 'Failed to create style profile' });
