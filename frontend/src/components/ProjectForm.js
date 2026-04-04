@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function ProjectForm() {
+  const router = useRouter();
   const [selectedTone, setSelectedTone] = useState("Social");
   const [selectedPrivacy, setSelectedPrivacy] = useState("Standard");
   const [file, setFile] = useState(null);
@@ -70,7 +72,16 @@ export default function ProjectForm() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        alert("Style profile successfully submitted!");
+        const result = await res.json();
+        // Capture the document ID from the response
+        const documentId = result.document?.id;
+
+        if (documentId) {
+          // Redirect with the documentId as a query parameter
+          router.push(`/sourcequality?documentId=${documentId}`);
+        } else {
+          router.push('/sourcequality');
+        }
       } else {
         alert("Submission failed.");
       }
