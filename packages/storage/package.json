@@ -1,0 +1,10 @@
+{
+    "name": "storage",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "main": "index.js",
+    "dependencies": {
+        "minio": "^8.0.7"
+    }
+}
