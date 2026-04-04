@@ -1,6 +1,24 @@
-import { getSegmentsByDocumentId, listValidationIssuesByDocumentId } from 'db';
+import {
+    getSegmentsByDocumentId,
+    getSegmentById,
+    updateSegmentSourceText,
+    listValidationIssuesByDocumentId,
+    getValidationIssueById,
+    syncValidationIssueContext,
+} from 'db';
 
 const NLP_SERVICE_URL = process.env.NLP_SERVICE_URL || 'http://127.0.0.1:8000';
+
+function toUiIssueType(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildUpdatedSegmentText(sourceText, offsetStart, offsetEnd, replacementText) {
+    return `${sourceText.slice(0, offsetStart)}${replacementText}${sourceText.slice(offsetEnd)}`;
+}
 
 export async function triggerDocumentValidation(document, context = {}) {
     const documentId = Number(document?.id ?? context?.document_id);
@@ -63,6 +81,88 @@ export default async function validationRoutes(fastify) {
         }
     });
 
+    fastify.post('/api/validation-issues/:issueId/resolve', async (request, reply) => {
+        const issueId = Number(request.params.issueId);
+        const { replacementText, sourceLang } = request.body || {};
+
+        if (!Number.isInteger(issueId) || issueId <= 0) {
+            return reply.status(400).send({ error: 'A valid issue id is required.' });
+        }
+
+        try {
+            const issue = await getValidationIssueById(issueId);
+
+            if (!issue) {
+                return reply.status(404).send({ error: 'Validation issue not found.' });
+            }
+
+            const segment = await getSegmentById(issue.segment_id);
+
+            if (!segment) {
+                return reply.status(404).send({ error: 'Segment not found.' });
+            }
+
+            const currentText = String(segment.source_text || '');
+            const offsetStart = Number(issue.offset_start ?? 0);
+            const offsetEnd = Number(issue.offset_end ?? offsetStart);
+            const nextValue = String(replacementText ?? issue.suggestion ?? '');
+            const actualSegmentId = Number(segment.id);
+            const actualDocumentId = Number(segment.document_id ?? issue.document_id);
+
+            if (!nextValue.trim()) {
+                return reply.status(400).send({ error: 'A replacement value is required.' });
+            }
+
+            if (
+                !Number.isInteger(offsetStart)
+                || !Number.isInteger(offsetEnd)
+                || offsetStart < 0
+                || offsetEnd < offsetStart
+                || offsetEnd > currentText.length
+            ) {
+                return reply.status(400).send({ error: 'Stored validation offsets are invalid for this segment.' });
+            }
+
+            let syncedIssue = issue;
+            if (
+                Number.isInteger(actualSegmentId)
+                && actualSegmentId > 0
+                && Number.isInteger(actualDocumentId)
+                && actualDocumentId > 0
+                && (Number(issue.segment_id) !== actualSegmentId || Number(issue.document_id) !== actualDocumentId)
+            ) {
+                syncedIssue = await syncValidationIssueContext(issue.id, actualSegmentId, actualDocumentId) || issue;
+            }
+
+            const updatedSourceText = buildUpdatedSegmentText(currentText, offsetStart, offsetEnd, nextValue);
+            const updatedSegment = await updateSegmentSourceText(actualSegmentId, updatedSourceText);
+
+            let validation = null;
+            try {
+                validation = await triggerDocumentValidation(
+                    { id: actualDocumentId },
+                    { source_lang: sourceLang || 'en-US' }
+                );
+            } catch (validationError) {
+                request.log.error(validationError);
+                validation = {
+                    success: false,
+                    error: validationError.message,
+                };
+            }
+
+            return reply.send({
+                success: true,
+                issueId,
+                issue: syncedIssue,
+                segment: updatedSegment,
+                validation,
+            });
+        } catch (error) {
+            request.log.error(error);
+            return reply.status(500).send({ error: 'Failed to update the segment from the selected issue.' });
+        }
+    });
 
     fastify.get('/api/documents/:documentId/quality-report', async (request, reply) => {
         const documentId = Number(request.params.documentId);
@@ -70,35 +170,41 @@ export default async function validationRoutes(fastify) {
             return reply.status(400).send({ error: 'A valid document id is required.' });
         }
         try {
-            // 1. Fetch segments and validation issues in parallel
             const [segments, issues] = await Promise.all([
                 getSegmentsByDocumentId(documentId),
                 listValidationIssuesByDocumentId(documentId)
             ]);
-            // 2. Map issues to their respective segments
+
+            const activeIssues = issues.filter((issue) => issue.resolved_by == null);
+
             const segmentsWithIssues = segments.map((seg, index) => {
-                const segIssues = issues.filter(issue => issue.segment_id === seg.id);
+                const sourceText = String(seg.source_text || '');
+                const segIssues = activeIssues.filter((issue) => issue.segment_id === seg.id);
 
                 return {
-                    id: (index + 1).toString().padStart(2, '0'), // For UI numbering
+                    id: (index + 1).toString().padStart(2, '0'),
                     dbId: seg.id,
-                    title: seg.source_text.length > 60 ? seg.source_text.substring(0, 60) + "..." : seg.source_text,
-                    fullText: seg.source_text,
-                    status: segIssues.length > 0 ? "error" : "clean",
-                    errors: segIssues.map(issue => ({
-                        type: issue.type, // e.g., 'Spelling', 'Grammar'
-                        original: seg.source_text.substring(issue.offset_start, issue.offset_end),
+                    title: sourceText.length > 60 ? `${sourceText.substring(0, 60)}...` : sourceText,
+                    fullText: sourceText,
+                    status: segIssues.length > 0 ? 'error' : 'clean',
+                    errors: segIssues.map((issue) => ({
+                        issueId: issue.id,
+                        type: toUiIssueType(issue.type),
+                        original: sourceText.substring(issue.offset_start ?? 0, issue.offset_end ?? 0),
                         suggestion: issue.suggestion,
-                        note: issue.message
+                        note: issue.message,
+                        offsetStart: issue.offset_start,
+                        offsetEnd: issue.offset_end,
                     }))
                 };
             });
-            // 3. Calculate statistics
+
             const stats = {
-                spelling: issues.filter(i => i.type.toLowerCase() === 'spelling').length,
-                grammar: issues.filter(i => i.type.toLowerCase() === 'grammar').length,
+                spelling: activeIssues.filter((issue) => String(issue.type).toLowerCase() === 'spelling').length,
+                grammar: activeIssues.filter((issue) => String(issue.type).toLowerCase() === 'grammar').length,
                 totalSegments: segments.length
             };
+
             return reply.send({ success: true, segments: segmentsWithIssues, stats });
         } catch (error) {
             request.log.error(error);

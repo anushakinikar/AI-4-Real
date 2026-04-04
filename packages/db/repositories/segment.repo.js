@@ -19,3 +19,14 @@ export async function getSegmentById(segmentId) {
 
     return rows[0] || null;
 }
+
+export async function updateSegmentSourceText(segmentId, sourceText) {
+    const rows = await sql`
+        UPDATE segments
+        SET source_text = ${sourceText}
+        WHERE id = ${segmentId}
+        RETURNING id, document_id, target_lang, source_text, translated_text, translation_source, locked_by
+    `;
+
+    return rows[0] || null;
+}

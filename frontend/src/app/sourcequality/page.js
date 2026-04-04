@@ -14,41 +14,68 @@ function QualityCheckContent() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const fetchQualityReport = async ({ keepLoading = false } = {}) => {
+        if (!documentId) {
+            setLoading(false);
+            return;
+        }
+
+        if (!keepLoading) {
+            setLoading(true);
+        }
+
+        try {
+            const response = await fetch(`http://localhost:8081/api/documents/${documentId}/quality-report`);
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                setSegments(data.segments);
+                setStats({
+                    spelling: data.stats.spelling,
+                    grammar: data.stats.grammar,
+                    total: data.stats.totalSegments
+                });
+                setError(null);
+            }
+        } catch (err) {
+            console.error('Failed to fetch quality report:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchQualityReport = async () => {
-            if (!documentId) {
-                setLoading(false);
-                return;
-            }
-
-            try {
-                // Ensure this matches your backend API URL and port
-                const response = await fetch(`http://localhost:8081/api/documents/${documentId}/quality-report`);
-
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-
-                if (data.success) {
-                    setSegments(data.segments);
-                    setStats({
-                        spelling: data.stats.spelling,
-                        grammar: data.stats.grammar,
-                        total: data.stats.totalSegments
-                    });
-                }
-            } catch (err) {
-                console.error("Failed to fetch quality report:", err);
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchQualityReport();
     }, [documentId]);
+
+    const handleResolveIssue = async ({ error: issue, replacementText }) => {
+        const response = await fetch(`http://localhost:8081/api/validation-issues/${issue.issueId}/resolve`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                documentId: Number(documentId),
+                replacementText,
+                sourceLang: 'en-US'
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to update the segment.');
+        }
+
+        await fetchQualityReport({ keepLoading: true });
+        return data;
+    };
 
     // ── Loading & Error States ──
     if (loading) {
@@ -142,7 +169,7 @@ function QualityCheckContent() {
             <div className="segments-list">
                 {segments.length > 0 ? (
                     segments.map(s => (
-                        <IssueCard key={s.id} {...s} />
+                        <IssueCard key={`${s.dbId}-${s.fullText}-${s.errors.length}`} {...s} onResolveIssue={handleResolveIssue} />
                     ))
                 ) : (
                     <div className="p-10 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">

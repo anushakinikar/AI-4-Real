@@ -13,9 +13,11 @@ export async function getUserByEmail(email) {
 
 export { createStyleProfile } from './repositories/style-profile.repo.js';
 export { createDocument, getDocumentById, listDocumentsByProjectId } from './repositories/document.repo.js';
-export { getSegmentsByDocumentId, getSegmentById } from './repositories/segment.repo.js';
+export { getSegmentsByDocumentId, getSegmentById, updateSegmentSourceText } from './repositories/segment.repo.js';
 export {
     listValidationIssuesByDocumentId,
+    getValidationIssueById,
     getValidationIssuesBySegmentId,
+    syncValidationIssueContext,
     deleteValidationIssuesByDocumentId,
 } from './repositories/validation-issue.repo.js';

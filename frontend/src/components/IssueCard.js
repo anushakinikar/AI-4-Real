@@ -1,22 +1,67 @@
 "use client";
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-function IssueCard({ id, title, fullText, status, errors = [] }) {
+function IssueCard({ id, dbId, title, fullText, status, errors = [], onResolveIssue }) {
     const [isOpen, setIsOpen] = useState(status !== 'clean');
     const [resolutions, setResolutions] = useState(
         () => Object.fromEntries(errors.map((_, i) => [i, 'open']))
     );
     const [editValues, setEditValues] = useState(
-        () => Object.fromEntries(errors.map((e, i) => [i, e.suggestion]))
+        () => Object.fromEntries(errors.map((e, i) => [i, e.suggestion || e.original || '']))
     );
+    const [busyIndex, setBusyIndex] = useState(null);
+    const [actionError, setActionError] = useState(null);
 
-    const spellCount = errors.filter(e => e.type === 'Spelling').length;
-    const grammarCount = errors.filter(e => e.type === 'Grammar').length;
+    useEffect(() => {
+        setIsOpen(status !== 'clean');
+        setResolutions(Object.fromEntries(errors.map((_, i) => [i, 'open'])));
+        setEditValues(Object.fromEntries(errors.map((e, i) => [i, e.suggestion || e.original || ''])));
+        setBusyIndex(null);
+        setActionError(null);
+    }, [errors, status, fullText]);
 
-    const applyFix = (i) => setResolutions(p => ({ ...p, [i]: 'fixed' }));
-    const ignoreIt = (i) => setResolutions(p => ({ ...p, [i]: 'ignored' }));
-    const startEdit = (i) => setResolutions(p => ({ ...p, [i]: 'editing' }));
-    const confirmEdit = (i) => setResolutions(p => ({ ...p, [i]: 'fixed' }));
+    const spellCount = errors.filter((e) => String(e.type).toLowerCase() === 'spelling').length;
+    const grammarCount = errors.filter((e) => String(e.type).toLowerCase() === 'grammar').length;
+
+    const ignoreIt = (i) => setResolutions((p) => ({ ...p, [i]: 'ignored' }));
+    const startEdit = (i) => setResolutions((p) => ({ ...p, [i]: 'editing' }));
+
+    const resolveIssue = async (i, replacementText) => {
+        setActionError(null);
+
+        try {
+            if (typeof onResolveIssue === 'function') {
+                setBusyIndex(i);
+                await onResolveIssue({
+                    segmentId: dbId,
+                    error: errors[i],
+                    replacementText,
+                });
+            }
+
+            setResolutions((p) => ({ ...p, [i]: 'fixed' }));
+        } catch (err) {
+            console.error('Failed to resolve issue:', err);
+            setActionError(err.message || 'Failed to update this segment.');
+        } finally {
+            setBusyIndex(null);
+        }
+    };
+
+    const applyFix = async (i) => {
+        await resolveIssue(i, errors[i]?.suggestion || errors[i]?.original || '');
+    };
+
+    const confirmEdit = async (i) => {
+        const nextValue = String(editValues[i] || '');
+
+        if (!nextValue.trim()) {
+            setActionError('Enter a replacement value before confirming the edit.');
+            return;
+        }
+
+        await resolveIssue(i, nextValue);
+    };
 
     return (
         <div className="issue-card-wrap">
@@ -93,10 +138,17 @@ function IssueCard({ id, title, fullText, status, errors = [] }) {
                         </span>
                     </div>
 
+                    {actionError && (
+                        <div style={{ marginBottom: 12, color: '#b91c1c', fontSize: 13, fontWeight: 600 }}>
+                            {actionError}
+                        </div>
+                    )}
+
                     {errors.map((error, idx) => {
                         const state = resolutions[idx];
-                        const isGrammar = error.type === 'Grammar';
+                        const isGrammar = String(error.type).toLowerCase() === 'grammar';
                         const typeClass = isGrammar ? 'grammar' : 'spelling';
+                        const isBusy = busyIndex === idx;
 
                         return (
                             <div
@@ -127,8 +179,9 @@ function IssueCard({ id, title, fullText, status, errors = [] }) {
                                             <button
                                                 className="btn-confirm"
                                                 onClick={() => confirmEdit(idx)}
+                                                disabled={isBusy}
                                             >
-                                                Confirm
+                                                {isBusy ? 'Saving...' : 'Confirm'}
                                             </button>
                                         </div>
                                     )}
@@ -176,15 +229,17 @@ function IssueCard({ id, title, fullText, status, errors = [] }) {
                                         <button
                                             className="btn-apply"
                                             onClick={e => { e.stopPropagation(); applyFix(idx); }}
+                                            disabled={isBusy}
                                         >
                                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
                                                 <polyline points="20 6 9 17 4 12" />
                                             </svg>
-                                            Apply Fix
+                                            {isBusy ? 'Saving...' : 'Apply Fix'}
                                         </button>
                                         <button
                                             className="btn-edit"
                                             onClick={e => { e.stopPropagation(); startEdit(idx); }}
+                                            disabled={isBusy}
                                         >
                                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -195,6 +250,7 @@ function IssueCard({ id, title, fullText, status, errors = [] }) {
                                         <button
                                             className="btn-ignore"
                                             onClick={e => { e.stopPropagation(); ignoreIt(idx); }}
+                                            disabled={isBusy}
                                         >
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -215,18 +271,36 @@ function IssueCard({ id, title, fullText, status, errors = [] }) {
 function highlightErrors(text, errors, resolutions, editValues) {
     if (!errors || !errors.length) return text;
 
-    // Map each error to its position in the string
-    const ranges = [];
-    errors.forEach((err, i) => {
-        const pos = text.indexOf(err.original);
-        if (pos !== -1) {
-            ranges.push({ start: pos, end: pos + err.original.length, idx: i });
-        }
-    });
+    const ranges = errors
+        .map((err, i) => {
+            const start = Number(err.offsetStart);
+            const end = Number(err.offsetEnd);
+
+            if (
+                Number.isInteger(start)
+                && Number.isInteger(end)
+                && start >= 0
+                && end >= start
+                && end <= text.length
+            ) {
+                return { start, end, idx: i };
+            }
+
+            const fallbackStart = text.indexOf(err.original);
+            if (fallbackStart !== -1) {
+                return {
+                    start: fallbackStart,
+                    end: fallbackStart + String(err.original || '').length,
+                    idx: i,
+                };
+            }
+
+            return null;
+        })
+        .filter(Boolean);
 
     if (!ranges.length) return text;
 
-    // Sort left to right so we walk the string once
     ranges.sort((a, b) => a.start - b.start);
 
     const parts = [];
@@ -237,7 +311,7 @@ function highlightErrors(text, errors, resolutions, editValues) {
 
         const err = errors[idx];
         const state = resolutions[idx];
-        const isGrammar = err.type === 'Grammar';
+        const isGrammar = String(err.type).toLowerCase() === 'grammar';
 
         if (state === 'fixed') {
             parts.push(
