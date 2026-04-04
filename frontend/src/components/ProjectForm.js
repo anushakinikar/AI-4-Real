@@ -2,10 +2,14 @@
 import { useState } from "react";
 
 export default function ProjectForm() {
-  const [selectedTone, setSelectedTone] = useState("Neutral");
+  const [selectedTone, setSelectedTone] = useState("Social");
   const [selectedPrivacy, setSelectedPrivacy] = useState("Standard");
   const [file, setFile] = useState(null);
   const [uploadStatus, setUploadStatus] = useState("");
+
+  const [sourceLang, setSourceLang] = useState("English");
+  const [targetLang, setTargetLang] = useState("");
+  const [docType, setDocType] = useState("Business Email");
   const handleFileSelection = (e) => {
     // Grab the first file the user selected
     if (e.target.files && e.target.files.length > 0) {
@@ -37,12 +41,39 @@ export default function ProjectForm() {
       setUploadStatus("Error reaching the server.");
     }
   };
+
+  const handleSubmitStyleProfile = async () => {
+    try {
+      const payload = {
+        org_id: 101, // default as requested
+        domain: docType, // mapping docType to 'domain'
+        tone: selectedTone,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+        // Since privacy isn't directly a column, we can store it in the JSONB style_rules field
+        style_rules: { privacyLevel: selectedPrivacy }
+      };
+      const res = await fetch("http://localhost:8080/api/style-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        alert("Style profile successfully submitted!");
+      } else {
+        alert("Submission failed.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error submitting the form");
+    }
+  };
   const tones = [
     { name: "Formal", desc: "Professional, structured language" },
     { name: "Official", desc: "Strictly for government or corporate use" },
     { name: "Conversational", desc: "Friendly, natural tone" },
     { name: "Technical", desc: "Precise, industry-specific terms" },
-    { name: "Neutral", desc: "Balanced, standard translation" }
+    { name: "Social", desc: "Balanced, standard translation" }
   ];
 
   const languages = ["English", "Hindi", "Spanish", "French", "German"];
@@ -104,27 +135,28 @@ export default function ProjectForm() {
       {/* ------------------------------------------------ */}
       <div className="language-grid" style={{ marginTop: '30px' }}></div>
 
+
       <div className="language-grid" style={{ marginTop: '30px' }}>
         <div>
           <label className="input-label">Source Language</label>
-          <select className="select-input" defaultValue="English">
-            {languages.map(l => <option key={l}>{l}</option>)}
+          <select className="select-input" value={sourceLang} onChange={(e) => setSourceLang(e.target.value)}>
+            {languages.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
         </div>
         <div>
           <label className="input-label">Target Language</label>
-          <select className="select-input" defaultValue="">
+          <select className="select-input" value={targetLang} onChange={(e) => setTargetLang(e.target.value)}>
             <option value="" disabled>Select target language</option>
-            {languages.map(l => <option key={l}>{l}</option>)}
+            {languages.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
         </div>
       </div>
-
       <h2 className="section-title">Document Type</h2>
-      <select className="select-input">
+      <select className="select-input" value={docType} onChange={(e) => setDocType(e.target.value)}>
         {types.map(type => <option key={type} value={type}>{type}</option>)}
       </select>
-
+      {/* ... Tone and Privacy elements remain the same ... */}
+      {/* Attach the handler to the submit button */}
       <h2 className="section-title">Translation Tone</h2>
       <div className="card-grid">
         {tones.map((t) => (
@@ -147,9 +179,7 @@ export default function ProjectForm() {
           </div>
         ))}
       </div>
-
-      <button className="submit-btn">Submit→</button>
-      <div style={{ clear: 'both' }}></div>
+      <button className="submit-btn" onClick={handleSubmitStyleProfile}>Submit→</button>
     </div>
   );
 }

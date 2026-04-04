@@ -15,3 +15,5 @@ export async function getUserByEmail(email) {
     // If a user is found, return the first result, otherwise return null
     return users.length > 0 ? users[0] : null;
 }
+
+export { createStyleProfile } from './repositories/style-profile.repo.js';

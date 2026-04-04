@@ -6,7 +6,7 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
 import { uploadToMinio } from 'storage'
-import { getUserByEmail } from 'db'; // Imports from your packages/db
+import { getUserByEmail, createStyleProfile } from 'db'; // Imports from your packages/db
 
 const fastify = Fastify({ logger: true });
 
@@ -87,6 +87,35 @@ fastify.post('/api/upload', async (request, reply) => {
     }
 });
 
+fastify.post('/api/style-profile', async (request, reply) => {
+    try {
+        const data = request.body;
+
+        // Optional basic validation
+        if (!data.target_lang) {
+            return reply.status(400).send({ error: 'Target language is required' });
+        }
+        const newProfile = await createStyleProfile({
+            id: data.id || Math.floor(Math.random() * 2147483647), // Generate a random integer ID within PostgreSQL INTEGER scale (4 bytes)
+            org_id: data.org_id,
+            domain: data.domain,
+            tone: data.tone.toUpperCase(),
+
+            source_lang: data.source_lang,
+            target_lang: data.target_lang,
+            style_rules: data.style_rules,
+            project_id: data.project_id || 1,
+            reference_pairs: data.reference_pairs || {},
+            compiled_prompt: data.compiled_prompt || "",
+            created_by: data.created_by || 1
+        });
+        console.log("Submitting tone:", data.tone.toUpperCase());
+        return reply.status(201).send({ success: true, profile: newProfile });
+    } catch (error) {
+        fastify.log.error(error);
+        return reply.status(500).send({ error: 'Failed to create style profile' });
+    }
+});
 
 // Start the server
 const start = async () => {
