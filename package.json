@@ -1,0 +1,29 @@
+{
+    "name": "translation-system",
+    "packageManager": "npm@11.11.0",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "workspaces": [
+        "apps/*",
+        "packages/*",
+        "frontend"
+    ],
+    "scripts": {
+        "dev": "turbo run dev --parallel",
+        "build": "turbo run build",
+        "migrate": "node scripts/migrate.js",
+        "seed": "node scripts/seed.js",
+        "create-buckets": "node scripts/create-buckets.js"
+    },
+    "devDependencies": {
+        "turbo": "^1.13.0"
+    },
+    "dependencies": {
+        "dotenv": "^16.4.5",
+        "framer-motion": "^12.38.0",
+        "minio": "^8.0.7",
+        "postgres": "^3.4.8",
+        "uuid": "^13.0.0"
+    }
+}
