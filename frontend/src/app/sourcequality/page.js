@@ -1,85 +1,86 @@
+/* frontend/src/app/sourcequality/page.js */
+"use client";
+
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import IssueCard from '../../components/IssueCard';
 
-export default function SourceQualityCheck() {
-    const segments = [
-        {
-            id: "01",
-            title: "The Ministry of Health and Family Welfare announces new health...",
-            fullText: "The Ministry of Health and Family Welfare announces new health initiatives for rural areas.",
-            status: "clean"
-        },
-        {
-            id: "02",
-            title: "This programe will provide acces to healthcare services in...",
-            fullText: "This programe will provide acces to healthcare services in remote villages across the nation.",
-            status: "error",
-            errors: [
-                { type: 'Spelling', original: 'programe', suggestion: 'programme' },
-                { type: 'Spelling', original: 'acces', suggestion: 'access' }
-            ]
-        },
-        {
-            id: "03",
-            title: "The initative includes mobile medical units, telemedicine...",
-            fullText: "The initative includes mobile medical units, telemedicine and local clinics.",
-            status: "error",
-            errors: [
-                { type: 'Spelling', original: 'initative', suggestion: 'initiative' }
-            ]
-        },
-        {
-            id: "04",
-            title: "Priority will be given to areas with limited infrastructure...",
-            fullText: "Priority will be given to areas with limited infrastructure and high poverty rates.",
-            status: "clean"
-        },
-        {
-            id: "05",
-            title: "The government has allocated approximatly 500 crore rupees for...",
-            fullText: "The government has allocated approximatly 500 crore rupees for this project in the current fiscal year.",
-            status: "error",
-            errors: [
-                { type: 'Spelling', original: 'approximatly', suggestion: 'approximately' }
-            ]
-        },
-        {
-            id: "06",
-            title: "State goverments are expected to contribute matching funds...",
-            fullText: "State goverments are expected to contribute matching funds for the expansion phase.",
-            status: "error",
-            errors: [
-                { type: 'Spelling', original: 'goverments', suggestion: 'governments' }
-            ]
-        },
-        {
-            id: "07",
-            title: "The scheme aims to reduce maternal mortality rates and improve...",
-            fullText: "The scheme aims to reduce maternal mortality rates and improve child nutrition outcomes.",
-            status: "clean"
-        },
-        {
-            id: "08",
-            title: "Healthcare workers will recieve specialised training in...",
-            fullText: "Healthcare workers will recieve specialised training in preventive care and emergency response.",
-            status: "error",
-            errors: [
-                { type: 'Spelling', original: 'recieve', suggestion: 'receive' },
-                { type: 'Grammar', original: 'specialised', suggestion: 'specialized', note: 'Use American English spelling for consistency' }
-            ]
-        },
-        {
-            id: "09",
-            title: "The Ministry will also establish partnerships with NGOs and...",
-            fullText: "The Ministry will also establish partnerships with NGOs and private sector providers.",
-            status: "clean"
-        },
-        {
-            id: "10",
-            title: "Implementation will begin in Q2 2026 with pilot programs in...",
-            fullText: "Implementation will begin in Q2 2026 with pilot programs in select districts.",
-            status: "clean"
-        }
-    ];
+function QualityCheckContent() {
+    const searchParams = useSearchParams();
+    const documentId = searchParams.get('documentId');
+
+    const [segments, setSegments] = useState([]);
+    const [stats, setStats] = useState({ spelling: 0, grammar: 0, total: 0 });
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const fetchQualityReport = async () => {
+            if (!documentId) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                // Ensure this matches your backend API URL and port
+                const response = await fetch(`http://localhost:8081/api/documents/${documentId}/quality-report`);
+
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    setSegments(data.segments);
+                    setStats({
+                        spelling: data.stats.spelling,
+                        grammar: data.stats.grammar,
+                        total: data.stats.totalSegments
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to fetch quality report:", err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchQualityReport();
+    }, [documentId]);
+
+    // ── Loading & Error States ──
+    if (loading) {
+        return (
+            <div className="page-container flex items-center justify-center min-h-[400px]">
+                <div className="text-center">
+                    <p className="text-lg font-medium text-slate-600">Analyzing source quality...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!documentId) {
+        return (
+            <div className="page-container p-10 text-center">
+                <div className="bg-orange-50 border border-orange-200 p-6 rounded-xl">
+                    <h2 className="text-orange-800 font-bold mb-2">No Document Context Found</h2>
+                    <p className="text-orange-700">Please go back to the upload page and submit your document first.</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="page-container p-10 text-center">
+                <div className="bg-red-50 border border-red-200 p-6 rounded-xl text-red-800">
+                    <strong>Error:</strong> {error}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="page-container">
@@ -92,6 +93,7 @@ export default function SourceQualityCheck() {
 
             {/* ── Stat Cards ── */}
             <div className="stats-grid">
+                {/* Spelling Errors Card */}
                 <div className="stat-card-red">
                     <div className="stat-icon-box">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5">
@@ -102,10 +104,11 @@ export default function SourceQualityCheck() {
                     </div>
                     <div>
                         <p className="stat-label" style={{ color: '#f87171' }}>Spelling Errors</p>
-                        <p className="stat-number" style={{ color: '#dc2626' }}>6</p>
+                        <p className="stat-number" style={{ color: '#dc2626' }}>{stats.spelling}</p>
                     </div>
                 </div>
 
+                {/* Grammar Issues Card */}
                 <div className="stat-card-orange">
                     <div className="stat-icon-box">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2.5">
@@ -116,10 +119,11 @@ export default function SourceQualityCheck() {
                     </div>
                     <div>
                         <p className="stat-label" style={{ color: '#fb923c' }}>Grammar Issues</p>
-                        <p className="stat-number" style={{ color: '#ea580c' }}>1</p>
+                        <p className="stat-number" style={{ color: '#ea580c' }}>{stats.grammar}</p>
                     </div>
                 </div>
 
+                {/* Segments Parsed Card */}
                 <div className="stat-card-green">
                     <div className="stat-icon-box">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5">
@@ -129,16 +133,22 @@ export default function SourceQualityCheck() {
                     </div>
                     <div>
                         <p className="stat-label" style={{ color: '#4ade80' }}>Segments Parsed</p>
-                        <p className="stat-number" style={{ color: '#16a34a' }}>10</p>
+                        <p className="stat-number" style={{ color: '#16a34a' }}>{stats.total}</p>
                     </div>
                 </div>
             </div>
 
             {/* ── Segments List ── */}
             <div className="segments-list">
-                {segments.map(s => (
-                    <IssueCard key={s.id} {...s} />
-                ))}
+                {segments.length > 0 ? (
+                    segments.map(s => (
+                        <IssueCard key={s.id} {...s} />
+                    ))
+                ) : (
+                    <div className="p-10 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                        No segments found for this document.
+                    </div>
+                )}
             </div>
 
             {/* ── Proceed Button ── */}
@@ -153,5 +163,14 @@ export default function SourceQualityCheck() {
             </div>
 
         </div>
+    );
+}
+
+// Default export uses Suspense for App Router searchParams usage
+export default function SourceQualityCheck() {
+    return (
+        <Suspense fallback={<div className="p-10 text-center">Loading page assets...</div>}>
+            <QualityCheckContent />
+        </Suspense>
     );
 }

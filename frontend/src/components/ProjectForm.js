@@ -72,8 +72,16 @@ export default function ProjectForm() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        // Automatically redirect to the next phase on success!
-        router.push('/sourcequality');
+        const result = await res.json();
+        // Capture the document ID from the response
+        const documentId = result.document?.id;
+
+        if (documentId) {
+          // Redirect with the documentId as a query parameter
+          router.push(`/sourcequality?documentId=${documentId}`);
+        } else {
+          router.push('/sourcequality');
+        }
       } else {
         alert("Submission failed.");
       }
