@@ -1,4 +1,9 @@
+"use client";
+
+import useAuth from "../hooks/useAuth";
+
 export default function Sidebar() {
+  const { userName } = useAuth();
   const projects = [
     { name: "Legal Contract Translation", time: "2 hours ago", status: "Completed" },
     { name: "Medical Report - Hindi", time: "5 hours ago", status: "In Progress" },
@@ -26,12 +31,12 @@ export default function Sidebar() {
 
       <div className="user-profile">
         <img 
-          src="https://api.dicebear.com/7.x/avataaars/svg?seed=John" 
+          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(userName)}`} 
           alt="User" 
           className="profile-pic" 
         />
         <div className="user-info">
-          <p style={{margin: 0, fontWeight: '600', fontSize: '14px'}}>John Doe</p>
+          <p style={{margin: 0, fontWeight: '600', fontSize: '14px'}}>{userName}</p>
           <span style={{fontSize: '11px', color: '#94a3b8'}}>Active Now</span>
         </div>
       </div>

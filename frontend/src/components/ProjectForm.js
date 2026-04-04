@@ -129,34 +129,48 @@ export default function ProjectForm() {
     return baseStyle;
   };
 
+  const isUploadError = /failed|error|please/i.test(uploadStatus);
+
   return (
     <div className="form-card">
       <h2 className="section-title">Upload Document</h2>
       <div className="upload-box">
-        <input type="file" onChange={handleFileSelection} />
-        <button className="btn-primary">
-          <p>Drop your file here, or click to browse</p>
-          <span style={{ fontSize: '12px', color: '#64748b' }}>Supported: PDF, DOCX, TXT</span>
-        </button>
+        <label htmlFor="document-upload" className="upload-dropzone">
+          <input
+            id="document-upload"
+            type="file"
+            className="upload-input-hidden"
+            onChange={handleFileSelection}
+          />
+          <div className="upload-dropzone-content">
+            <p className="upload-file-name">
+              {file ? file.name : 'Drop your file here, or click to browse'}
+            </p>
+            <span className="upload-file-hint">
+              {file ? 'File selected and ready to upload' : 'Choose a document to begin translation review'}
+            </span>
+            <span className="upload-supported">Supported: PDF, DOC, DOCX, TXT</span>
+          </div>
+        </label>
       </div>
-      <div style={{ marginTop: '15px', textAlign: 'center' }}>
-        {file && <p style={{ fontSize: '14px', marginBottom: '10px' }}>Selected: {file.name}</p>}
+
+      <div className="upload-actions">
+        {file && <p className="selected-file-note">Selected: {file.name}</p>}
 
         <button
           onClick={handleUploadClick}
-          className="btn-primary"
-          style={{ width: 'auto', padding: '8px 24px', backgroundColor: '#8a3ffc' }}
+          className="upload-db-btn"
+          type="button"
         >
-          Upload to Database
+          Upload
         </button>
 
-        {uploadStatus && <div style={{ marginTop: '10px', fontSize: '14px', color: uploadStatus.includes("Failed") || uploadStatus.includes("Error") ? 'red' : 'green' }}>
-          {uploadStatus}
-        </div>}
+        {uploadStatus && (
+          <div className={`upload-status ${isUploadError ? 'error' : 'success'}`}>
+            {uploadStatus}
+          </div>
+        )}
       </div>
-      {/* ------------------------------------------------ */}
-      <div className="language-grid" style={{ marginTop: '30px' }}></div>
-
 
       <div className="language-grid" style={{ marginTop: '30px' }}>
         <div>

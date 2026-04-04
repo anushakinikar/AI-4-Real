@@ -1,4 +1,10 @@
+"use client";
+
+import useAuth from "../hooks/useAuth";
+
 export default function Header() {
+  const { userName } = useAuth();
+
   return (
     <>
       <div className="search-container">
@@ -16,7 +22,7 @@ export default function Header() {
       </div>
 
       <div className="welcome-banner">
-        <h2 style={{margin: 0}}>Welcome back, John 👋</h2>
+        <h2 style={{margin: 0}}>Welcome back, {userName} 👋</h2>
         <p style={{margin: '5px 0 0 0', opacity: 0.9}}>
           Configure your document translation using preferences below.
         </p>
