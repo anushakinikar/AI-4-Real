@@ -6,6 +6,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import spacy
 from docx import Document
 from docx.oxml.ns import qn
 from docx.table import Table
@@ -22,6 +23,8 @@ LIST_STYLES = {
     "list paragraph", "listbullet", "listbullet2", "listnumber", "listnumber2",
     "list bullet", "list number"
 }
+
+_SENTENCE_NLP = None
 
 
 def _style_id(para: Paragraph) -> str:
@@ -105,40 +108,110 @@ def _count_words(text: str) -> int:
     return len(text.split())
 
 
-def _split_runs_into_chunks(runs: list[dict], words_per_segment: int) -> list[list[dict]]:
-    if not runs:
+def _get_sentence_nlp():
+    global _SENTENCE_NLP
+
+    if _SENTENCE_NLP is not None:
+        return _SENTENCE_NLP
+
+    try:
+        _SENTENCE_NLP = spacy.load(
+            "en_core_web_sm",
+            disable=["tagger", "parser", "attribute_ruler", "lemmatizer", "ner", "textcat"],
+        )
+        if "sentencizer" not in _SENTENCE_NLP.pipe_names:
+            _SENTENCE_NLP.add_pipe("sentencizer")
+    except Exception:
+        _SENTENCE_NLP = spacy.blank("en")
+        if "sentencizer" not in _SENTENCE_NLP.pipe_names:
+            _SENTENCE_NLP.add_pipe("sentencizer")
+
+    return _SENTENCE_NLP
+
+
+def _split_into_sentence_chunks(text: str, max_words: int) -> list[str]:
+    stripped_text = text.strip()
+    if not stripped_text:
         return []
 
-    chunks: list[list[dict]] = []
-    current_chunk: list[dict] = []
-    current_words = 0
+    doc = _get_sentence_nlp()(stripped_text)
+    sentences = [sent.text.strip() for sent in doc.sents if sent.text and sent.text.strip()]
+    if not sentences:
+        return [stripped_text]
 
-    for run in runs:
-        words_in_run = _count_words(run["text"])
+    chunks: list[str] = []
+    current: list[str] = []
+    count = 0
 
-        if current_words + words_in_run > words_per_segment and current_chunk:
-            chunks.append(current_chunk)
-            current_chunk = []
-            current_words = 0
+    for sentence in sentences:
+        word_count = _count_words(sentence)
+        if count + word_count > max_words and current:
+            chunks.append(" ".join(current).strip())
+            current = []
+            count = 0
 
-        if words_in_run > words_per_segment:
-            words = run["text"].split()
-            for start in range(0, len(words), words_per_segment):
-                piece = words[start:start + words_per_segment]
-                text = " ".join(piece)
-                chunks.append([{**run, "text": text, "run_index": run["run_index"]}])
-        else:
-            current_chunk.append(run)
-            current_words += words_in_run
+        current.append(sentence)
+        count += word_count
 
-    if current_chunk:
-        chunks.append(current_chunk)
+    if current:
+        chunks.append(" ".join(current).strip())
 
-    return chunks
+    return chunks or [stripped_text]
 
 
-def _chunk_source_text(runs: list[dict]) -> str:
-    return "".join(run["text"] for run in runs).strip()
+def _assign_runs_to_chunk(chunk_text: str, all_runs: list[dict], start_search: int = 0) -> tuple[list[dict], int]:
+    full_para_text = "".join(run["text"] for run in all_runs)
+    normalized_chunk = chunk_text.strip()
+
+    start = full_para_text.find(normalized_chunk, start_search)
+    if start == -1:
+        start = full_para_text.find(normalized_chunk)
+
+    if start == -1:
+        return ([{
+            "run_index": 0,
+            "text": chunk_text,
+            "bold": False,
+            "italic": False,
+            "underline": False,
+            "font_name": "",
+            "font_size_pt": None,
+            "color_hex": None,
+        }], start_search)
+
+    end = start + len(normalized_chunk)
+    cursor = 0
+    matched: list[dict] = []
+
+    for run in all_runs:
+        run_start = cursor
+        run_end = cursor + len(run["text"])
+        cursor = run_end
+
+        if run_end <= start or run_start >= end:
+            continue
+
+        clip_start = max(run_start, start) - run_start
+        clip_end = min(run_end, end) - run_start
+        clipped_text = run["text"][clip_start:clip_end]
+        if not clipped_text.strip():
+            continue
+
+        matched.append({**run, "text": clipped_text})
+
+    if not matched:
+        matched = [{
+            "run_index": 0,
+            "text": chunk_text,
+            "bold": False,
+            "italic": False,
+            "underline": False,
+            "font_name": "",
+            "font_size_pt": None,
+            "color_hex": None,
+        }]
+
+    return matched, end
 
 
 class SegmentBuilder:
@@ -151,6 +224,58 @@ class SegmentBuilder:
     def _next_id(self) -> str:
         self._counter += 1
         return f"seg_{self._counter:03d}"
+
+    def _segments_from_text(
+        self,
+        full_text: str,
+        all_runs: list[dict],
+        para_idx: int,
+        seg_type: str,
+        para: Paragraph,
+        extra_anchor: dict | None = None,
+    ):
+        chunks = _split_into_sentence_chunks(full_text, self.words_per_segment)
+        if not chunks:
+            chunks = [full_text]
+
+        search_start = 0
+        for chunk_text in chunks:
+            chunk_text = chunk_text.strip()
+            if not chunk_text:
+                continue
+
+            chunk_runs, search_start = _assign_runs_to_chunk(chunk_text, all_runs, search_start)
+            seg_id = self._next_id()
+            anchor = {
+                "xpath": f"/w:document/w:body/w:p[{para_idx + 1}]",
+                "paragraph_index": para_idx,
+                "style_id": _style_id(para),
+                "alignment": _alignment(para),
+                "runs": chunk_runs,
+            }
+
+            if seg_type == "LIST_ITEM":
+                p_pr = para._p.find(qn("w:pPr"))
+                if p_pr is not None:
+                    num_pr = p_pr.find(qn("w:numPr"))
+                    if num_pr is not None:
+                        ilvl = num_pr.find(qn("w:ilvl"))
+                        num_id = num_pr.find(qn("w:numId"))
+                        anchor["list_level"] = int(ilvl.get(qn("w:val"), 0)) if ilvl is not None else 0
+                        anchor["numbering_id"] = int(num_id.get(qn("w:val"), 0)) if num_id is not None else 0
+
+            if extra_anchor:
+                anchor.update(extra_anchor)
+
+            self.segments.append({
+                "id": seg_id,
+                "position": self._counter,
+                "type": seg_type,
+                "source_text": chunk_text,
+                "word_count": _count_words(chunk_text),
+                "is_translatable": True,
+                "docx_anchor": anchor,
+            })
 
     def add_para(self, para: Paragraph, para_idx: int, seg_type: str, extra_anchor: dict | None = None):
         runs = _runs_for_para(para)
@@ -179,9 +304,8 @@ class SegmentBuilder:
                 nt["position_after_segment"] = f"seg_{self._counter:03d}"
             self.non_translatable.append(nt)
 
-        chunks = _split_runs_into_chunks(runs, self.words_per_segment)
-        if not chunks and full_text:
-            chunks = [[{
+        if not runs:
+            runs = [{
                 "run_index": 0,
                 "text": full_text,
                 "bold": False,
@@ -190,46 +314,17 @@ class SegmentBuilder:
                 "font_name": "",
                 "font_size_pt": None,
                 "color_hex": None,
-            }]]
+            }]
 
-        for chunk_runs in chunks:
-            source_text = _chunk_source_text(chunk_runs)
-            if not source_text:
-                continue
-
-            seg_id = self._next_id()
-            anchor = {
-                "xpath": f"/w:document/w:body/w:p[{para_idx + 1}]",
-                "paragraph_index": para_idx,
-                "style_id": _style_id(para),
-                "alignment": _alignment(para),
-                "runs": chunk_runs,
-            }
-
-            if seg_type == "LIST_ITEM":
-                p_pr = para._p.find(qn("w:pPr"))
-                if p_pr is not None:
-                    num_pr = p_pr.find(qn("w:numPr"))
-                    if num_pr is not None:
-                        ilvl = num_pr.find(qn("w:ilvl"))
-                        num_id = num_pr.find(qn("w:numId"))
-                        anchor["list_level"] = int(ilvl.get(qn("w:val"), 0)) if ilvl is not None else 0
-                        anchor["numbering_id"] = int(num_id.get(qn("w:val"), 0)) if num_id is not None else 0
-
-            if extra_anchor:
-                anchor.update(extra_anchor)
-
-            self.segments.append({
-                "id": seg_id,
-                "position": self._counter,
-                "type": seg_type,
-                "source_text": source_text,
-                "word_count": _count_words(source_text),
-                "is_translatable": True,
-                "docx_anchor": anchor,
-            })
+        self._segments_from_text(full_text, runs, para_idx, seg_type, para, extra_anchor)
 
     def add_table(self, table: Table, table_idx: int):
+        def _is_header_row(row_idx: int) -> bool:
+            if row_idx == 0:
+                return True
+            tr_pr = table.rows[row_idx]._tr.find(qn("w:trPr"))
+            return tr_pr is not None and tr_pr.find(qn("w:tblHeader")) is not None
+
         for row_idx, row in enumerate(table.rows):
             for col_idx, cell in enumerate(row.cells):
                 for para in cell.paragraphs:
@@ -238,9 +333,8 @@ class SegmentBuilder:
                         continue
 
                     runs = _runs_for_para(para)
-                    chunks = _split_runs_into_chunks(runs, self.words_per_segment)
-                    if not chunks:
-                        chunks = [[{
+                    if not runs:
+                        runs = [{
                             "run_index": 0,
                             "text": cell_text,
                             "bold": False,
@@ -249,25 +343,35 @@ class SegmentBuilder:
                             "font_name": "",
                             "font_size_pt": None,
                             "color_hex": None,
-                        }]]
+                        }]
 
-                    for chunk_runs in chunks:
-                        source_text = _chunk_source_text(chunk_runs)
-                        if not source_text:
+                    chunks = _split_into_sentence_chunks(cell_text, self.words_per_segment)
+                    if not chunks:
+                        chunks = [cell_text]
+
+                    search_start = 0
+                    for chunk_text in chunks:
+                        chunk_text = chunk_text.strip()
+                        if not chunk_text:
                             continue
+
+                        chunk_runs, search_start = _assign_runs_to_chunk(chunk_text, runs, search_start)
                         seg_id = self._next_id()
                         self.segments.append({
                             "id": seg_id,
                             "position": self._counter,
                             "type": "TABLE_CELL",
-                            "source_text": source_text,
-                            "word_count": _count_words(source_text),
+                            "source_text": chunk_text,
+                            "word_count": _count_words(chunk_text),
                             "is_translatable": True,
                             "docx_anchor": {
                                 "xpath": f"/w:document/w:body/w:tbl[{table_idx + 1}]/w:tr[{row_idx + 1}]/w:tc[{col_idx + 1}]/w:p[1]",
                                 "table_index": table_idx,
                                 "row": row_idx,
                                 "col": col_idx,
+                                "is_header_row": _is_header_row(row_idx),
+                                "col_span": 1,
+                                "row_span": 1,
                                 "runs": chunk_runs,
                             },
                         })
@@ -283,8 +387,8 @@ class SegmentBuilder:
 
         from lxml import etree
 
-        root = etree.fromstring(xml_bytes)
         namespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        root = etree.fromstring(xml_bytes)
 
         for footnote in root.findall(f"{{{namespace}}}footnote"):
             footnote_id = footnote.get(f"{{{namespace}}}id", "")
@@ -294,38 +398,45 @@ class SegmentBuilder:
 
             for paragraph in footnote.findall(f".//{{{namespace}}}p"):
                 runs_out = []
-                text_parts = []
                 for index, run_el in enumerate(paragraph.findall(f"{{{namespace}}}r")):
                     run_text = "".join(t.text or "" for t in run_el.findall(f"{{{namespace}}}t"))
                     if not run_text:
                         continue
-                    text_parts.append(run_text)
+
+                    run_props = run_el.find(f"{{{namespace}}}rPr")
                     runs_out.append({
                         "run_index": index,
                         "text": run_text,
-                        "bold": False,
-                        "italic": False,
-                        "underline": False,
+                        "bold": run_props is not None and run_props.find(f"{{{namespace}}}b") is not None,
+                        "italic": run_props is not None and run_props.find(f"{{{namespace}}}i") is not None,
+                        "underline": run_props is not None and run_props.find(f"{{{namespace}}}u") is not None,
                         "font_name": "",
                         "font_size_pt": None,
                         "color_hex": None,
                     })
 
-                full_text = "".join(text_parts).strip()
+                full_text = "".join(run["text"] for run in runs_out).strip()
                 if not full_text:
                     continue
 
-                for chunk_runs in _split_runs_into_chunks(runs_out, self.words_per_segment) or [[{"run_index": 0, "text": full_text, "bold": False, "italic": False, "underline": False, "font_name": "", "font_size_pt": None, "color_hex": None}]]:
-                    source_text = _chunk_source_text(chunk_runs)
-                    if not source_text:
+                chunks = _split_into_sentence_chunks(full_text, self.words_per_segment)
+                if not chunks:
+                    chunks = [full_text]
+
+                search_start = 0
+                for chunk_text in chunks:
+                    chunk_text = chunk_text.strip()
+                    if not chunk_text:
                         continue
+
+                    chunk_runs, search_start = _assign_runs_to_chunk(chunk_text, runs_out, search_start)
                     seg_id = self._next_id()
                     self.segments.append({
                         "id": seg_id,
                         "position": self._counter,
                         "type": "FOOTNOTE",
-                        "source_text": source_text,
-                        "word_count": _count_words(source_text),
+                        "source_text": chunk_text,
+                        "word_count": _count_words(chunk_text),
                         "is_translatable": True,
                         "docx_anchor": {
                             "source_file": "word/footnotes.xml",
