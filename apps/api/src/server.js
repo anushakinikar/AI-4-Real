@@ -6,7 +6,7 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
 import { uploadToMinio } from 'storage'
-import { getUserByEmail, createStyleProfile } from 'db'; // Imports from your packages/db
+import { getUserByEmail, createStyleProfile, createDocument } from 'db'; // Imports from your packages/db
 
 const fastify = Fastify({ logger: true });
 
@@ -95,20 +95,33 @@ fastify.post('/api/style-profile', async (request, reply) => {
         if (!data.target_lang) {
             return reply.status(400).send({ error: 'Target language is required' });
         }
+        // Generate a single absolute ID to use as both the style profile PK and the project ID
+        const generatedId = data.project_id || Math.floor(Math.random() * 2147483647);
+
         const newProfile = await createStyleProfile({
-            id: data.id || Math.floor(Math.random() * 2147483647), // Generate a random integer ID within PostgreSQL INTEGER scale (4 bytes)
+            id: generatedId,
             org_id: data.org_id,
             domain: data.domain,
             tone: data.tone.toUpperCase(),
-
             source_lang: data.source_lang,
             target_lang: data.target_lang,
             style_rules: data.style_rules,
-            project_id: data.project_id || 1,
+            project_id: generatedId,
             reference_pairs: data.reference_pairs || {},
             compiled_prompt: data.compiled_prompt || "",
             created_by: data.created_by || 1
         });
+        let newDocument = null;
+        if (data.document_data && data.document_data.s3_key) {
+            newDocument = await createDocument({
+                filename: data.document_data.filename,
+                s3_key: data.document_data.s3_key,
+                target_lang: data.document_data.target_lang,
+                sensitivity: data.document_data.sensitivity.toUpperCase(),
+                project_id: generatedId
+            });
+        }
+
         console.log("Submitting tone:", data.tone.toUpperCase());
         return reply.status(201).send({ success: true, profile: newProfile });
     } catch (error) {
