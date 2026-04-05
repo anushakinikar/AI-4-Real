@@ -1,3 +1,4 @@
+/* apps/api/src/routes/translation.js */
 import { pipeline } from '@xenova/transformers';
 import {
     getSegmentsByDocumentId,
@@ -22,7 +23,7 @@ export async function generateEmbedding(text) {
 }
 
 /**
- * Maps common language names to ISO 639-1 codes for Azure
+ * Maps common language names to ISO 639-1 codes for MyMemory
  */
 function getLanguageCode(lang) {
     if (!lang) return 'hi';
@@ -40,41 +41,38 @@ function getLanguageCode(lang) {
 }
 
 /**
- * Helper to call Azure Translator API
+ * Helper to call MyMemory API
+ * Processes segments in parallel since the public API is segment-based
  */
-async function translateWithAzure(texts, targetLang, sourceLang = 'en') {
-    // 1. Correct the base URL structure
-    const baseUrl = "https://api.cognitive.microsofttranslator.com/translate";
-    const apiVersion = "3.0";
-
-    const apiKey = process.env.AZURE_TRANSLATOR_KEY;
-    const region = process.env.AZURE_TRANSLATOR_REGION;
-    if (!apiKey || !region) {
-        console.error("❌ MISSING CONFIG: AZURE_TRANSLATOR_KEY or REGION not found in .env");
-        throw new Error("Azure Configuration Missing");
-    }
+async function translateWithMyMemory(texts, targetLang, sourceLang = 'en') {
     const isoTarget = getLanguageCode(targetLang);
     const isoSource = getLanguageCode(sourceLang);
-    // 2. Build the full URL properly
-    const url = `${baseUrl}?api-version=${apiVersion}&to=${isoTarget}&from=${isoSource}`;
-    console.log(`📡 Sending to Azure: ${url}`);
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Ocp-Apim-Subscription-Key': apiKey,
-            'Ocp-Apim-Subscription-Region': region,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(texts.map(text => ({ Text: text })))
+    const langpair = `${isoSource}|${isoTarget}`;
+
+    console.log(`📡 Calling MyMemory: ${texts.length} segments, ${langpair}`);
+
+    const promises = texts.map(async (text) => {
+        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langpair}`;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`MyMemory API error: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            if (data.responseStatus !== 200) {
+                throw new Error(`MyMemory Error: ${data.responseDetails}`);
+            }
+
+            return data.responseData.translatedText;
+        } catch (err) {
+            console.error(`❌ MyMemory failed for text "${text.slice(0, 20)}...":`, err.message);
+            return null; // Return null so we can filter failed ones
+        }
     });
-    if (!response.ok) {
-        const errorDetail = await response.json().catch(() => ({}));
-        const message = errorDetail.error?.message || response.statusText;
-        console.error(`❌ AZURE API REJECTED (${response.status}):`, message);
-        throw new Error(`Azure Error: ${message}`);
-    }
-    const data = await response.json();
-    return data.map(item => item.translations[0].text);
+
+    return Promise.all(promises);
 }
 
 export default async function translationRoutes(fastify) {
@@ -86,7 +84,7 @@ export default async function translationRoutes(fastify) {
         }
 
         try {
-            // 1. Fetch all segments for the document
+            // 1. Fetch segments
             const segments = await getSegmentsByDocumentId(documentId);
 
             if (!segments || segments.length === 0) {
@@ -96,12 +94,11 @@ export default async function translationRoutes(fastify) {
             const results = {
                 total: segments.length,
                 tmMatches: 0,
-                azureTranslations: 0,
+                mtTranslations: 0,
                 failed: 0
             };
 
-            // TRACKING: We'll collect segments that need Azure ML translation
-            const segmentsForAzure = [];
+            const segmentsForML = [];
 
             // PASS 1: Vectorization and TM Lookup
             for (const seg of segments) {
@@ -117,9 +114,8 @@ export default async function translationRoutes(fastify) {
                         await updateSegmentTranslation(seg.id, bestMatch.target_text, source);
                         results.tmMatches++;
                     } else {
-                        // Mark for Azure Pass
-                        segmentsForAzure.push(seg);
-                        // Optional: Mark in DB as LLM pending
+                        // Mark for MyMemory
+                        segmentsForML.push(seg);
                         await updateSegmentTranslation(seg.id, null, 'LLM');
                     }
                 } catch (err) {
@@ -128,23 +124,26 @@ export default async function translationRoutes(fastify) {
                 }
             }
 
-            // PASS 2: Azure Batch Translation (Batch size: 10)
+            // PASS 2: MyMemory Translation (Batching 10 at a time)
             const batchSize = 10;
-            for (let i = 0; i < segmentsForAzure.length; i += batchSize) {
-                const batch = segmentsForAzure.slice(i, i + batchSize);
+            for (let i = 0; i < segmentsForML.length; i += batchSize) {
+                const batch = segmentsForML.slice(i, i + batchSize);
                 const texts = batch.map(s => s.source_text);
-                const targetLang = batch[0].target_lang || 'hi'; // Fallback to Hindi if not specified
+                const targetLang = batch[0].target_lang;
 
                 try {
-                    const translatedTexts = await translateWithAzure(texts, targetLang, 'en');
+                    const translations = await translateWithMyMemory(texts, targetLang, 'en');
 
-                    // Update individual segments in the database
                     for (let j = 0; j < batch.length; j++) {
-                        await updateSegmentTranslation(batch[j].id, translatedTexts[j], 'LLM');
-                        results.azureTranslations++;
+                        if (translations[j]) {
+                            await updateSegmentTranslation(batch[j].id, translations[j], 'LLM');
+                            results.mtTranslations++;
+                        } else {
+                            results.failed++;
+                        }
                     }
                 } catch (batchErr) {
-                    request.log.error(`Azure Batch failed at index ${i}:`, batchErr);
+                    request.log.error(`MyMemory Batch failed at index ${i}:`, batchErr);
                     results.failed += batch.length;
                 }
             }
