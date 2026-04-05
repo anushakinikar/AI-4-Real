@@ -1,0 +1,244 @@
+/* globals.css */
+body {
+    margin: 0;
+    font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+    background: radial-gradient(circle at top center, #2f62b9 0%, #0a2c73 100%);
+    color: white;
+    min-height: 100vh;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 70px 20px 40px;
+    min-height: 100vh;
+}
+
+/* Branding at the Top */
+.brand-header {
+    text-align: center;
+    margin-bottom: 50px;
+}
+
+.brand-logo-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    margin-bottom: 12px;
+}
+
+.brand-logo {
+    width: 55px;
+    height: 55px;
+    background: #3b82f6;
+    border-radius: 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 26px;
+    font-weight: bold;
+    box-shadow: 0 0 25px rgba(59, 130, 246, 0.5);
+}
+
+.brand-title {
+    font-size: 42px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: 0.5px;
+}
+
+.brand-subtitle {
+    font-size: 18px;
+    color: #94a3b8;
+    font-weight: 400;
+}
+
+/* Expanded Auth Card */
+.card {
+    width: 100%;
+    max-width: 920px;
+    background: #ffffff;
+    padding: 34px 52px 42px;
+    border-radius: 28px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    color: #256cdd;
+    transition: transform 0.3s ease;
+}
+
+.header-tabs {
+    display: flex;
+    background: #eef2f7;
+    border-radius: 30px;
+    padding: 6px;
+    margin-bottom: 36px;
+}
+
+.header-tab {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-weight: 600;
+    border-radius: 25px;
+    transition: 0.3s ease;
+    color: #64748b;
+    font-size: 16px;
+}
+
+.header-tab.active {
+    background: white;
+    color: #1d4ed8;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.title {
+    text-align: center;
+    font-size: 31px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    color: #0f172a;
+}
+
+.subtitle {
+    text-align: center;
+    color: #64748b;
+    margin-bottom: 28px;
+    font-size: 15px;
+}
+
+.login-form-container {
+    max-width: 100%;
+}
+
+.auth-form {
+    width: 100%;
+}
+
+.auth-role-group {
+    margin-bottom: 26px;
+}
+
+.auth-error {
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 14px;
+    font-weight: 600;
+    border: 1px solid #fecaca;
+}
+
+.label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #334155;
+}
+
+.toggle-group {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 28px;
+}
+
+.toggle-btn {
+    flex: 1;
+    padding: 12px 8px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    color: #475569;
+}
+
+.toggle-btn.active {
+    background: #1d4ed8;
+    color: white;
+    border-color: #1d4ed8;
+    box-shadow: 0 4px 15px rgba(29, 78, 216, 0.25);
+}
+
+.input-wrapper {
+    margin-bottom: 18px;
+    position: relative;
+}
+
+.input {
+    width: 100%;
+    padding: 15px 18px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 15px;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+    color: #0f172a;
+}
+
+.input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background: white;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 16px;
+    background: #1d4ed8;
+    color: white;
+    border: none;
+    border-radius: 14px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 15px;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background: #1e40af;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px -5px rgba(29, 78, 216, 0.4);
+}
+
+.footer-link {
+    text-align: right;
+    font-size: 14px;
+    color: #2563eb;
+    cursor: pointer;
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+.auth-submit-btn {
+    margin-top: 18px;
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 40px 14px 24px;
+    }
+
+    .brand-title {
+        font-size: 34px;
+    }
+
+    .card {
+        padding: 24px 18px 28px;
+        border-radius: 22px;
+    }
+
+    .toggle-group {
+        flex-direction: column;
+    }
+}
