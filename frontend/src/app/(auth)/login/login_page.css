@@ -2,8 +2,7 @@
 body {
     margin: 0;
     font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
-    /* Deep Blue Professional Background */
-    background: radial-gradient(circle at center, #3261ad 0%, #0a2662 100%);
+    background: radial-gradient(circle at top center, #2f62b9 0%, #0a2c73 100%);
     color: white;
     min-height: 100vh;
 }
@@ -12,8 +11,8 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    padding: 60px 20px;
+    justify-content: flex-start;
+    padding: 70px 20px 40px;
     min-height: 100vh;
 }
 
@@ -60,23 +59,21 @@ body {
 /* Expanded Auth Card */
 .card {
     width: 100%;
-    max-width: 800px;
-    /* Increased horizontal size */
+    max-width: 920px;
     background: #ffffff;
-    padding: 50px;
-    /* Increased padding for the larger scale */
+    padding: 34px 52px 42px;
     border-radius: 28px;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
     color: #256cdd;
     transition: transform 0.3s ease;
 }
 
 .header-tabs {
     display: flex;
-    background: #f1f5f9;
+    background: #eef2f7;
     border-radius: 30px;
     padding: 6px;
-    margin-bottom: 35px;
+    margin-bottom: 36px;
 }
 
 .header-tab {
@@ -100,17 +97,40 @@ body {
 
 .title {
     text-align: center;
-    font-size: 30px;
+    font-size: 31px;
     font-weight: 800;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     color: #0f172a;
 }
 
 .subtitle {
     text-align: center;
     color: #64748b;
-    margin-bottom: 30px;
+    margin-bottom: 28px;
     font-size: 15px;
+}
+
+.login-form-container {
+    max-width: 100%;
+}
+
+.auth-form {
+    width: 100%;
+}
+
+.auth-role-group {
+    margin-bottom: 26px;
+}
+
+.auth-error {
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 14px;
+    font-weight: 600;
+    border: 1px solid #fecaca;
 }
 
 .label {
@@ -148,7 +168,7 @@ body {
 }
 
 .input-wrapper {
-    margin-bottom: 22px;
+    margin-bottom: 18px;
     position: relative;
 }
 
@@ -161,6 +181,7 @@ body {
     font-size: 15px;
     box-sizing: border-box;
     transition: all 0.2s ease;
+    color: #0f172a;
 }
 
 .input:focus {
@@ -195,6 +216,29 @@ body {
     font-size: 14px;
     color: #2563eb;
     cursor: pointer;
-    margin-top: 10px;
+    margin-top: 4px;
     font-weight: 500;
+}
+
+.auth-submit-btn {
+    margin-top: 18px;
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 40px 14px 24px;
+    }
+
+    .brand-title {
+        font-size: 34px;
+    }
+
+    .card {
+        padding: 24px 18px 28px;
+        border-radius: 22px;
+    }
+
+    .toggle-group {
+        flex-direction: column;
+    }
 }
