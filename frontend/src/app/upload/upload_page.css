@@ -13,7 +13,6 @@ html {
     background: #f5f7fb;
     color: #333;
     overflow: hidden;
-    /* Prevent global scroll */
 }
 
 .main-layout {
@@ -121,12 +120,17 @@ html {
 /* 3. Main Content Area */
 .content-area {
     flex: 1;
-    padding: 30px 50px;
+    padding: 30px 38px;
     overflow-y: auto;
     height: 100vh;
 }
 
-/* Reference UI: Pill Search Bar (image_ad0721.png) */
+.upload-container {
+    width: 100%;
+    min-height: 100vh;
+}
+
+/* Search Bar */
 .search-container {
     position: relative;
     width: 100%;
@@ -182,9 +186,12 @@ html {
 /* 4. Form Components */
 .form-card {
     background: white;
-    padding: 35px;
+    padding: 34px;
     border-radius: 24px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    border: 1px solid #edf2ff;
+    max-width: 1040px;
+    margin: 0 auto 32px;
 }
 
 .section-title {
@@ -196,15 +203,104 @@ html {
     letter-spacing: 0.5px;
 }
 
+/* 5. Upload Box — FIXED */
 .upload-box {
-    border: 2px dashed #cbd5e1;
-    border-radius: 16px;
-    padding: 50px;
-    text-align: center;
-    color: #64748b;
-    margin-bottom: 30px;
+    margin-bottom: 16px;
 }
 
+.upload-dropzone {
+    width: 100%;
+    min-height: 142px;
+    border: 2px dashed #d6deef;
+    border-radius: 18px;
+    background: #fbfcff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.upload-dropzone:hover {
+    border-color: #7c95ff;
+    background: #f4f7ff;
+    transform: translateY(-1px);
+}
+
+.upload-input-hidden {
+    display: none;
+}
+
+.upload-dropzone-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.upload-file-name {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #64748b;
+    margin: 0;
+    word-break: break-word;
+}
+
+.upload-file-hint {
+    font-size: 0.9rem;
+    color: #7c8aa5;
+}
+
+.upload-supported {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.upload-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.selected-file-note {
+    font-size: 0.9rem;
+    color: #475569;
+}
+
+.upload-db-btn {
+    border: none;
+    border-radius: 12px;
+    background: #1958ff;
+    color: #fff;
+    font-weight: 600;
+    padding: 10px 22px;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.upload-db-btn:hover {
+    background: #0f45d6;
+    transform: translateY(-1px);
+}
+
+.upload-status {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.upload-status.success {
+    color: #15803d;
+}
+
+.upload-status.error {
+    color: #dc2626;
+}
+
+/* 6. Language Grid */
 .language-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -236,7 +332,7 @@ html {
     background-color: #fff;
 }
 
-/* 5. Option Grids (Tone & Privacy) */
+/* 7. Option Grids (Tone & Privacy) */
 .card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -256,7 +352,6 @@ html {
     background: #fff;
 }
 
-/* Active State Colors */
 .option-card.active {
     background: #041530;
     color: white;
@@ -264,7 +359,6 @@ html {
     box-shadow: 0 4px 12px rgba(4, 21, 48, 0.2);
 }
 
-/* Specialized Privacy Active States */
 .privacy-confidential.active {
     background: #fff7ed !important;
     color: #9a3412 !important;
@@ -282,7 +376,7 @@ html {
     opacity: 0.7;
 }
 
-/* 6. Buttons & Misc */
+/* 8. Submit Button */
 .submit-btn {
     float: right;
     margin-top: 40px;
@@ -300,4 +394,42 @@ html {
     background: #1958ff;
     transform: translateY(-1px);
     box-shadow: 0 10px 15px -3px rgba(25, 88, 255, 0.3);
+}
+
+@media (max-width: 900px) {
+    .sidebar {
+        width: 220px;
+        padding: 18px;
+    }
+
+    .content-area {
+        padding: 20px;
+    }
+
+    .language-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .main-layout {
+        flex-direction: column;
+        height: auto;
+        width: 100%;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+    }
+
+    .content-area {
+        height: auto;
+        padding: 16px;
+    }
+
+    .form-card {
+        padding: 20px;
+        border-radius: 18px;
+    }
 }
