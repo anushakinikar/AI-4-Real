@@ -24,6 +24,13 @@ export {
 
 export { upsertTmVector, findSimilarTmEntries } from './repositories/tm-vector.repo.js';
 export { upsertSegmentVector, getSegmentVectorById } from './repositories/segment-vector.repo.js';
+/* packages/db/index.js */
+
+// ... (existing exports) ...
+
+export { createSegmentEvaluation } from './repositories/segment-evaluation.repo.js';
+export { getGlossaryByOrgAndLang } from './repositories/glossary-term.repo.js';
+export { getTmEntriesByOrgAndLang } from './repositories/tm-entry.repo.js';
 
 export async function updateSegmentTranslation(segmentId, translatedText, translationSource) {
     const rows = await sql`
