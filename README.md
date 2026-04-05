@@ -1,10 +1,6 @@
 # AI-4-Real
 This is the official public git repo for Team AI-4-Real for Problem Statement 1- AI Powered Translation Studio 
 
-Below is a **public-safe README version** containing **only main points that should be visible publicly** (without exposing internal DB schema, sensitive workflow logic, or security internals) 📘✨
-
----
-
 # VaaniSetu – AI Powered Translation Studio
 
 ## Project Overview
@@ -135,8 +131,4 @@ A linguist reviews and improves translations before final approval.
 * More language support
 * Domain-specific translation models
 * Enterprise collaboration features
-
----
-
-If you want, next I can also make it **GitHub-ready README with sections like Installation, Folder Structure, API Flow, and Architecture Diagram** 🚀
 
