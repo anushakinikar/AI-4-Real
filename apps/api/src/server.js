@@ -5,6 +5,7 @@ import multipart from '@fastify/multipart';
 import { uploadToMinio } from 'storage';
 import { getUserByEmail, createStyleProfile, createDocument } from 'db';
 import validationRoutes, { triggerDocumentValidation } from './routes/validation.js';
+import translationRoutes from './routes/translation.js';
 
 const fastify = Fastify({ logger: true });
 const NLP_SERVICE_URL = process.env.NLP_SERVICE_URL || 'http://127.0.0.1:8000';
@@ -74,6 +75,7 @@ fastify.post('/auth/login', async (request, reply) => {
 
 fastify.register(multipart);
 fastify.register(validationRoutes);
+fastify.register(translationRoutes);
 
 fastify.post('/api/upload', async (request, reply) => {
     try {

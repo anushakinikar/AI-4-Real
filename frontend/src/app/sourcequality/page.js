@@ -2,11 +2,12 @@
 "use client";
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import IssueCard from '../../components/IssueCard.js';
 
 function QualityCheckContent() {
     const searchParams = useSearchParams();
+    const router = useRouter();
     const documentId = searchParams.get('documentId');
 
     const [segments, setSegments] = useState([]);
@@ -180,7 +181,10 @@ function QualityCheckContent() {
 
             {/* ── Proceed Button ── */}
             <div className="proceed-btn-wrap">
-                <button className="btn-proceed">
+                <button 
+                    className="btn-proceed"
+                    onClick={() => router.push(`/buffer?documentId=${documentId}`)}
+                >
                     Proceed to Translation
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                         <line x1="5" y1="12" x2="19" y2="12" />

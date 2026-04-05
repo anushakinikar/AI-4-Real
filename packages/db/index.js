@@ -21,3 +21,18 @@ export {
     syncValidationIssueContext,
     deleteValidationIssuesByDocumentId,
 } from './repositories/validation-issue.repo.js';
+
+export { upsertTmVector, findSimilarTmEntries } from './repositories/tm-vector.repo.js';
+export { upsertSegmentVector, getSegmentVectorById } from './repositories/segment-vector.repo.js';
+
+export async function updateSegmentTranslation(segmentId, translatedText, translationSource) {
+    const rows = await sql`
+        UPDATE segments
+        SET translated_text = ${translatedText},
+            translation_source = ${translationSource}
+        WHERE id = ${segmentId}
+        RETURNING id, translated_text, translation_source
+    `;
+
+    return rows[0] || null;
+}
